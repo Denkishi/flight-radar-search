@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ricerca Voli Storici - Flightradar24 API</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Flatpickr for Datepickers -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/it.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FFC107', /* FR24 yellow */
+                        secondary: '#1A202C'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-secondary text-white shadow-md py-4">
+        <div class="container mx-auto px-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-plane text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold">FR24 Historical Search</h1>
+            </div>
+            <div class="text-sm text-gray-400">Ricerca voli passati tramite API</div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8 max-w-6xl">
+        
+        <!-- Config Section -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">1. Configurazione API</h2>
+            <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                <div class="flex-1 w-full">
+                    <label for="api-token" class="block text-sm font-medium text-gray-700 mb-1">Token API Flightradar24</label>
+                    <input type="password" id="api-token" placeholder="Incolla qui il tuo token (es. Bearer ... o solo il token)" 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary outline-none transition-colors">
+                </div>
+                <div class="w-full md:w-auto mt-4 md:mt-6">
+                    <button id="save-token-btn" class="w-full md:w-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm transition-colors">
+                        Salva Token
+                    </button>
+                </div>
+            </div>
+            <p id="token-status" class="text-sm text-green-600 mt-2 hidden"><i class="fa-solid fa-check-circle mr-1"></i> Token salvato in locale.</p>
+        </section>
+
+        <!-- Search Section -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">2. Parametri di Ricerca</h2>
+            
+            <form id="search-form" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- Date Range -->
+                    <div>
+                        <label for="date-from" class="block text-sm font-medium text-gray-700 mb-1">Data Inizio *</label>
+                        <input type="text" id="date-from" required placeholder="Seleziona data inizio"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary outline-none bg-white">
+                    </div>
+                    <div>
+                        <label for="date-to" class="block text-sm font-medium text-gray-700 mb-1">Data Fine *</label>
+                        <input type="text" id="date-to" required placeholder="Seleziona data fine"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary outline-none bg-white">
+                        <p class="text-xs text-gray-500 mt-1">Massimo 14 giorni di differenza.</p>
+                    </div>
+
+                    <!-- Airline -->
+                    <div>
+                        <label for="airline" class="block text-sm font-medium text-gray-700 mb-1">Compagnia Aerea</label>
+                        <input type="text" id="airline" list="airlines-list" placeholder="es. Ryanair, SAS (Cerca per nome o codice)" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary outline-none">
+                        <datalist id="airlines-list"></datalist>
+                        <p class="text-xs text-gray-500 mt-1">L'API usa il codice ICAO della compagnia.</p>
+                    </div>
+                    
+                    <!-- Flight Number -->
+                    <div>
+                        <label for="flight-number" class="block text-sm font-medium text-gray-700 mb-1">Numero Volo (Opzionale)</label>
+                        <input type="text" id="flight-number" placeholder="es. FR123, CA4515" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary outline-none">
+                    </div>
+
+                    <!-- Departure Airport -->
+                    <div>
+                        <label for="airport-dep" class="block text-sm font-medium text-gray-700 mb-1">Aeroporto Partenza</label>
+                        <input type="text" id="airport-dep" list="airports-list" placeholder="es. Fiumicino, LHR, JFK" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary outline-none">
+                    </div>
+
+                    <!-- Arrival Airport -->
+                    <div>
+                        <label for="airport-arr" class="block text-sm font-medium text-gray-700 mb-1">Aeroporto Arrivo</label>
+                        <input type="text" id="airport-arr" list="airports-list" placeholder="es. Malpensa, CDG, LAX" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary outline-none">
+                        <datalist id="airports-list"></datalist>
+                    </div>
+                    
+                </div>
+                
+                <div class="flex justify-end pt-4">
+                    <button type="submit" id="search-btn" class="px-8 py-3 bg-secondary hover:bg-gray-800 text-white font-bold rounded-md shadow transition-colors flex items-center">
+                        <i class="fa-solid fa-magnifying-glass mr-2"></i> Cerca Voli
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Results Section -->
+        <section id="results-section" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hidden">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-lg font-semibold text-gray-800">3. Risultati Ricerca</h2>
+                <span id="results-count" class="bg-gray-100 text-gray-700 py-1 px-3 rounded-full text-sm font-medium">0 voli trovati</span>
+            </div>
+            
+            <div id="loading-spinner" class="hidden py-12 text-center">
+                <i class="fa-solid fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+                <p class="text-gray-500">Ricerca in corso...</p>
+            </div>
+            
+            <div id="error-message" class="hidden bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fa-solid fa-circle-exclamation text-red-500"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-red-700 font-bold">Errore</p>
+                        <p id="error-text" class="text-sm text-red-700"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="results-controls" class="hidden flex flex-col md:flex-row justify-between items-center bg-gray-50 p-3 rounded-md mb-4 border border-gray-200">
+                <div class="flex items-center space-x-2 mb-2 md:mb-0">
+                    <label for="sort-select" class="text-sm text-gray-700 font-medium">Ordina per:</label>
+                    <select id="sort-select" class="text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:ring-primary focus:border-primary outline-none">
+                        <option value="date-desc">Più recenti prima</option>
+                        <option value="date-asc">Meno recenti prima</option>
+                        <option value="flight-asc">Numero Volo (A-Z)</option>
+                        <option value="airline-asc">Compagnia (A-Z)</option>
+                    </select>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label for="per-page-select" class="text-sm text-gray-700 font-medium">Risultati per pagina:</label>
+                    <select id="per-page-select" class="text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:ring-primary focus:border-primary outline-none">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="results-container" class="space-y-4">
+                <!-- Cards will be injected here -->
+            </div>
+            
+            <div id="pagination-controls" class="hidden flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+                <button id="prev-page" class="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <i class="fa-solid fa-chevron-left mr-1"></i> Precedente
+                </button>
+                <span id="page-info" class="text-sm font-medium text-gray-700">Pagina 1 di 1</span>
+                <button id="next-page" class="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    Successivo <i class="fa-solid fa-chevron-right ml-1"></i>
+                </button>
+            </div>
+        </section>
+        
+    </main>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
